@@ -1,12 +1,14 @@
-from typing import List, Tuple, Iterable, Set, Optional, Dict
+import time
+from typing import List, Tuple, Iterable, Set, Optional, Dict, Iterator
 
 from enum import Enum
 import numpy as np
 from termcolor import colored
 from functools import lru_cache
 import argparse
+import multiprocessing as mp
 
-from helper.files import read_lines
+from helper.files import read_lines, read_file
 from helper.data_structures import izip
 from edit_distance.transposition_edit_distance import edit_operations as get_edit_operations, EditOperation, \
     OperationType
@@ -375,6 +377,154 @@ def any_edited(group: Tuple[int, ...], labels: List[List[Label]]):
     return False
 
 
+def evaluate_sample(correct: str, corrupt: str, predicted: str):
+    evaluations = []
+
+    is_correct = int(predicted == correct)
+
+    correct_tokens = correct.split()
+    corrupt_tokens = corrupt.split()
+    predicted_tokens = predicted.split()
+
+    n_gt = len(correct_tokens)
+    n_in = len(corrupt_tokens)
+    n_pred = len(predicted_tokens)
+
+    # matchings
+    pred_gt_matching = match_tokens(predicted_tokens, correct_tokens)
+    in_gt_matching = match_tokens(corrupt_tokens, correct_tokens)
+    pred_in_matching = match_tokens(predicted_tokens, corrupt_tokens)
+
+    # gt labels
+    gt_correctly_predicted = set(i for _, i in pred_gt_matching)
+    # gt_not_corrupt = set(i for _, i in in_gt_matching)
+    gt_labels = ground_truth_token_labels(correct, corrupt)
+    gt_not_corrupt = set(i for i, labels in enumerate(gt_labels) if len(labels) == 0)
+    # print([label.name for label in gt_labels])
+
+    # in labels
+    # in_not_corrupt = set(i for i, _ in in_gt_matching)
+    in_true_labels = input_true_token_labels(correct, corrupt)
+    in_not_corrupt = set(i for i, labels in enumerate(in_true_labels) if len(labels) == 0)
+    in_predicted_labels = input_predicted_token_labels(corrupt, predicted)
+
+    # pred labels
+    pred_correct = set(i for i, _ in pred_gt_matching)
+    pred_unchanged = set(i for i, _ in pred_in_matching)
+
+    # error types
+    gt_error_types, in_error_types, gt2in_grouping = error_types(correct, corrupt, tokenizer, words)
+    gt2inputs = index2group_matching(gt2in_grouping)
+
+    # GROUND TRUTH SEQUENCE
+
+    contains_gt_none = False
+    gt_sequence = ""
+    for gt_i, gt_token, labels, error_type in izip(correct_tokens, gt_labels, gt_error_types):
+        color = None
+        if gt_i not in gt_not_corrupt:
+            if gt_i in gt_correctly_predicted and any_edited(gt2inputs[gt_i], in_predicted_labels):
+                color = "green"
+                evaluations.append((labels, EvaluationCase.TRUE_POSITIVE, error_type))
+            else:
+                color = "yellow"
+                evaluations.append((labels, EvaluationCase.FALSE_NEGATIVE, error_type))
+        elif gt_i not in gt_correctly_predicted:
+            color = "red"
+        if gt_i > 0:
+            gt_sequence += ' '
+        text = gt_token
+        if len(labels) > 0:
+            text += "[%s]" % edit_labels2token_label(labels).name
+            text += "{%s}" % ERROR_TYPE_ABBREVIATIONS[error_type]
+        gt_sequence += colored(text, color)
+
+    # INPUT SEQUENCE
+
+    in_correctly_predicted = set()
+    for corrupt_group, predicted_group in group_tokens(corrupt, predicted):
+        if all_in_set(predicted_group, pred_correct):
+            for in_i in corrupt_group:
+                in_correctly_predicted.add(in_i)
+
+    in_sequence = ""
+    for in_i, in_token, true_labels, predicted_labels, error_type in \
+            izip(corrupt_tokens, in_true_labels, in_predicted_labels, in_error_types):
+        if in_i > 0:
+            in_sequence += ' '
+        text = in_token
+        if len(predicted_labels) > 0 or len(true_labels) > 0:
+            text += "[%s->%s]" % (edit_labels2token_label(true_labels).name,
+                                  edit_labels2token_label(predicted_labels).name)
+            text += "{%s}" % ERROR_TYPE_ABBREVIATIONS[error_type]
+        color = None
+        corrupt = len(true_labels) > 0
+        changed = len(predicted_labels) > 0
+        correct = in_i in in_correctly_predicted
+        if corrupt:
+            if changed:
+                color = "green" if correct else "blue"
+                evaluations.append((predicted_labels, EvaluationCase.DID_DETECT, error_type))
+                evaluations.append((predicted_labels, EvaluationCase.PREDICTED, error_type))
+                evaluations.append((true_labels, EvaluationCase.WAS_DETECTED, error_type))
+            else:
+                color = "yellow"
+                evaluations.append((true_labels, EvaluationCase.UNDETECTED, error_type))
+        else:
+            if changed:
+                color = "red"
+                evaluations.append((predicted_labels, EvaluationCase.PREDICTED, error_type))
+        if changed and not correct:
+            evaluations.append((predicted_labels, EvaluationCase.FALSE_POSITIVE, error_type))
+        in_sequence += colored(text, color)
+
+    # PREDICTED SEQUENCE
+
+    pred_sequence = ""
+    for pred_i, pred_token in enumerate(predicted_tokens):
+        color = None
+        if pred_i not in pred_unchanged and pred_i in pred_correct:
+            color = "green"
+        elif pred_i in pred_unchanged and pred_i not in pred_correct:
+            color = "yellow"
+        elif pred_i not in pred_unchanged and pred_i not in pred_correct:
+            color = "red"
+        if pred_i > 0:
+            pred_sequence += ' '
+        pred_sequence += colored(pred_token, color)
+
+    print("GROUND TRUTH:\n" + gt_sequence)
+    print("INPUT:\n" + in_sequence)
+    print("PREDICTED:\n" + pred_sequence)
+    print()
+
+    return evaluations, is_correct
+
+
+def evaluate_sequences(evaluator: Evaluator,
+                       correct_sequences: Iterator[str],
+                       corrupt_sequences: Iterator[str],
+                       predicted_sequences: Iterator[str],
+                       n: int):
+    n_correct = 0
+    total_sequences = 0
+    for s_i, correct, corrupt, predicted in izip(correct_sequences,
+                                                 corrupt_sequences,
+                                                 predicted_sequences):
+        if s_i == n:
+            break
+
+        evaluations, is_correct = evaluate_sample(correct, corrupt, predicted)
+
+        total_sequences += 1
+        n_correct += is_correct
+
+        for labels, case, error_type in evaluations:
+            evaluator.add(labels, case, error_type)
+
+    return n_correct, total_sequences
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate the predictions of a spell checking program on a given"
                                                  " benchmark of misspelled and correct text.")
@@ -388,146 +538,47 @@ if __name__ == "__main__":
                         help="Path to the vocabulary (one word per line, default: data/words.txt).")
     parser.add_argument("-n", type=int, default=-1,
                         help="Number of sequences to evaluate (default: all).")
+    parser.add_argument("-mp", action="store_true")
     args = parser.parse_args()
 
     words = set(read_lines(args.words))
     print(len(words))
-    correct_sequences = read_lines(args.correct)
-    corrupt_sequences = read_lines(args.misspelled)
-    predicted_sequences = read_lines(args.predictions)
 
     tokenizer = RegexTokenizer()
     evaluator = Evaluator()
 
-    total_sequences = 0
-    n_correct = 0
+    start = time.monotonic()
 
-    for s_i, correct, corrupt, predicted in izip(correct_sequences,
-                                                 corrupt_sequences,
-                                                 predicted_sequences):
-        if s_i == args.n:
-            break
+    if args.mp:
+        correct_sequences = read_file(args.correct)[:args.n]
+        corrupt_sequences = read_file(args.misspelled)[:args.n]
+        predicted_sequences = read_file(args.predictions)[:args.n]
 
-        if predicted == correct:
-            n_correct += 1
-        total_sequences += 1
+        n_correct = 0
+        total_sequences = 0
 
-        correct_tokens = correct.split()
-        corrupt_tokens = corrupt.split()
-        predicted_tokens = predicted.split()
+        with mp.Pool(mp.cpu_count()) as pool:
+            results = pool.starmap(evaluate_sample,
+                                   list(zip(correct_sequences, corrupt_sequences, predicted_sequences)))
 
-        n_gt = len(correct_tokens)
-        n_in = len(corrupt_tokens)
-        n_pred = len(predicted_tokens)
+        for evaluations, is_correct in results:
+            for labels, case, error_type in evaluations:
+                evaluator.add(labels, case, error_type)
+            n_correct += is_correct
+            total_sequences += 1
 
-        # matchings
-        pred_gt_matching = match_tokens(predicted_tokens, correct_tokens)
-        in_gt_matching = match_tokens(corrupt_tokens, correct_tokens)
-        pred_in_matching = match_tokens(predicted_tokens, corrupt_tokens)
+    else:
+        correct_sequences = read_lines(args.correct)
+        corrupt_sequences = read_lines(args.misspelled)
+        predicted_sequences = read_lines(args.predictions)
 
-        # gt labels
-        gt_correctly_predicted = set(i for _, i in pred_gt_matching)
-        # gt_not_corrupt = set(i for _, i in in_gt_matching)
-        gt_labels = ground_truth_token_labels(correct, corrupt)
-        gt_not_corrupt = set(i for i, labels in enumerate(gt_labels) if len(labels) == 0)
-        # print([label.name for label in gt_labels])
-
-        # in labels
-        # in_not_corrupt = set(i for i, _ in in_gt_matching)
-        in_true_labels = input_true_token_labels(correct, corrupt)
-        in_not_corrupt = set(i for i, labels in enumerate(in_true_labels) if len(labels) == 0)
-        in_predicted_labels = input_predicted_token_labels(corrupt, predicted)
-
-        # pred labels
-        pred_correct = set(i for i, _ in pred_gt_matching)
-        pred_unchanged = set(i for i, _ in pred_in_matching)
-
-        # error types
-        gt_error_types, in_error_types, gt2in_grouping = error_types(correct, corrupt, tokenizer, words)
-        gt2inputs = index2group_matching(gt2in_grouping)
-
-        # GROUND TRUTH SEQUENCE
-
-        contains_gt_none = False
-        gt_sequence = ""
-        for gt_i, gt_token, labels, error_type in izip(correct_tokens, gt_labels, gt_error_types):
-            color = None
-            if gt_i not in gt_not_corrupt:
-                if gt_i in gt_correctly_predicted and any_edited(gt2inputs[gt_i], in_predicted_labels):
-                    color = "green"
-                    evaluator.add(labels, EvaluationCase.TRUE_POSITIVE, error_type)
-                else:
-                    color = "yellow"
-                    evaluator.add(labels, EvaluationCase.FALSE_NEGATIVE, error_type)
-            elif gt_i not in gt_correctly_predicted:
-                color = "red"
-            if gt_i > 0:
-                gt_sequence += ' '
-            text = gt_token
-            if len(labels) > 0:
-                text += "[%s]" % edit_labels2token_label(labels).name
-                text += "{%s}" % ERROR_TYPE_ABBREVIATIONS[error_type]
-            gt_sequence += colored(text, color)
-
-        # INPUT SEQUENCE
-
-        in_correctly_predicted = set()
-        for corrupt_group, predicted_group in group_tokens(corrupt, predicted):
-            if all_in_set(predicted_group, pred_correct):
-                for in_i in corrupt_group:
-                    in_correctly_predicted.add(in_i)
-
-        in_sequence = ""
-        for in_i, in_token, true_labels, predicted_labels, error_type in \
-                izip(corrupt_tokens, in_true_labels, in_predicted_labels, in_error_types):
-            if in_i > 0:
-                in_sequence += ' '
-            text = in_token
-            if len(predicted_labels) > 0 or len(true_labels) > 0:
-                text += "[%s->%s]" % (edit_labels2token_label(true_labels).name,
-                                      edit_labels2token_label(predicted_labels).name)
-                text += "{%s}" % ERROR_TYPE_ABBREVIATIONS[error_type]
-            color = None
-            corrupt = len(true_labels) > 0
-            changed = len(predicted_labels) > 0
-            correct = in_i in in_correctly_predicted
-            if corrupt:
-                if changed:
-                    color = "green" if correct else "blue"
-                    evaluator.add(predicted_labels, EvaluationCase.DID_DETECT, error_type)
-                    evaluator.add(predicted_labels, EvaluationCase.PREDICTED, error_type)
-                    evaluator.add(true_labels, EvaluationCase.WAS_DETECTED, error_type)
-                else:
-                    color = "yellow"
-                    evaluator.add(true_labels, EvaluationCase.UNDETECTED, error_type)
-            else:
-                if changed:
-                    color = "red"
-                    evaluator.add(predicted_labels, EvaluationCase.PREDICTED, error_type)
-            if changed and not correct:
-                evaluator.add(predicted_labels, EvaluationCase.FALSE_POSITIVE, error_type)
-            in_sequence += colored(text, color)
-
-        # PREDICTED SEQUENCE
-
-        pred_sequence = ""
-        for pred_i, pred_token in enumerate(predicted_tokens):
-            color = None
-            if pred_i not in pred_unchanged and pred_i in pred_correct:
-                color = "green"
-            elif pred_i in pred_unchanged and pred_i not in pred_correct:
-                color = "yellow"
-            elif pred_i not in pred_unchanged and pred_i not in pred_correct:
-                color = "red"
-            if pred_i > 0:
-                pred_sequence += ' '
-            pred_sequence += colored(pred_token, color)
-
-        print("GROUND TRUTH:\n" + gt_sequence)
-        print("INPUT:\n" + in_sequence)
-        print("PREDICTED:\n" + pred_sequence)
-        print()
-
+        n_correct, total_sequences = evaluate_sequences(evaluator,
+                                                        correct_sequences,
+                                                        corrupt_sequences,
+                                                        predicted_sequences,
+                                                        args.n)
     evaluator.print_evaluation()
+    end = time.monotonic()
+    print(f"Processing {total_sequences} sequences took {end - start:.2f} seconds")
     print()
-    print("%.1f sequence accuracy" % (n_correct / total_sequences * 100))
+    print("%.1f sequence accuracy" % ((n_correct / total_sequences) * 100))

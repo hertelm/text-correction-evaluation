@@ -425,14 +425,10 @@ def evaluate_sample(correct: str, corrupt: str, predicted: str):
         if gt_i not in gt_not_corrupt:
             if gt_i in gt_correctly_predicted and any_edited(gt2inputs[gt_i], in_predicted_labels):
                 color = "green"
-                # evaluator.add(labels, EvaluationCase.TRUE_POSITIVE, error_type)
-                # queue.put((labels, EvaluationCase.TRUE_POSITIVE, error_type))
                 evaluations.append((labels, EvaluationCase.TRUE_POSITIVE, error_type))
             else:
                 color = "yellow"
-                # evaluator.add(labels, EvaluationCase.FALSE_NEGATIVE, error_type)
                 evaluations.append((labels, EvaluationCase.FALSE_NEGATIVE, error_type))
-                # queue.put((labels, EvaluationCase.FALSE_NEGATIVE, error_type))
         elif gt_i not in gt_correctly_predicted:
             color = "red"
         if gt_i > 0:
@@ -468,29 +464,17 @@ def evaluate_sample(correct: str, corrupt: str, predicted: str):
         if corrupt:
             if changed:
                 color = "green" if correct else "blue"
-                # evaluator.add(predicted_labels, EvaluationCase.DID_DETECT, error_type)
-                # evaluator.add(predicted_labels, EvaluationCase.PREDICTED, error_type)
-                # evaluator.add(true_labels, EvaluationCase.WAS_DETECTED, error_type)
-                # queue.put((predicted_labels, EvaluationCase.DID_DETECT, error_type))
-                # queue.put((predicted_labels, EvaluationCase.PREDICTED, error_type))
-                # queue.put((true_labels, EvaluationCase.WAS_DETECTED, error_type))
                 evaluations.append((predicted_labels, EvaluationCase.DID_DETECT, error_type))
                 evaluations.append((predicted_labels, EvaluationCase.PREDICTED, error_type))
                 evaluations.append((true_labels, EvaluationCase.WAS_DETECTED, error_type))
             else:
                 color = "yellow"
-                # evaluator.add(true_labels, EvaluationCase.UNDETECTED, error_type)
-                # queue.put((true_labels, EvaluationCase.UNDETECTED, error_type))
                 evaluations.append((true_labels, EvaluationCase.UNDETECTED, error_type))
         else:
             if changed:
                 color = "red"
-                # evaluator.add(predicted_labels, EvaluationCase.PREDICTED, error_type)
-                # queue.put((predicted_labels, EvaluationCase.PREDICTED, error_type))
                 evaluations.append((predicted_labels, EvaluationCase.PREDICTED, error_type))
         if changed and not correct:
-            # evaluator.add(predicted_labels, EvaluationCase.FALSE_POSITIVE, error_type)
-            # queue.put((predicted_labels, EvaluationCase.FALSE_POSITIVE, error_type))
             evaluations.append((predicted_labels, EvaluationCase.FALSE_POSITIVE, error_type))
         in_sequence += colored(text, color)
 

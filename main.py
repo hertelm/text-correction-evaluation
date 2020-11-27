@@ -539,8 +539,6 @@ def evaluate_sequences(evaluator: Evaluator,
             evaluator.add(labels, case, error_type)
 
     return n_correct, total_sequences
-    # tuple with 2 items indicates to main process that this process is finished
-    # queue.put((evaluations, n_correct, total_sequences))
 
 
 if __name__ == "__main__":

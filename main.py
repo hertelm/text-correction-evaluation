@@ -14,7 +14,6 @@ from edit_distance.transposition_edit_distance import edit_operations as get_edi
     OperationType
 from evaluation.token_operations import assign_edits_to_tokens
 from tokenization.regex_tokenizer import RegexTokenizer
-from helper.pickle import load_object
 
 
 @lru_cache(6)
@@ -279,6 +278,26 @@ def error_types(correct: str,
     return correct_error_types, corrupt_error_types, matchings
 
 
+def percentage_string(percentage):
+    percentage = percentage * 100
+    if percentage < 10:
+        txt = "  "
+    elif percentage < 100:
+        txt = " "
+    else:
+        txt = ""
+    return txt + "%.2f" % percentage
+
+
+COLUMN_WIDTH = 20
+
+
+def table_column(entry: str, width: int = COLUMN_WIDTH):
+    if len(entry) < width:
+        entry += " " * (width - len(entry))
+    return entry
+
+
 class Evaluator:
     def __init__(self):
         self.count = {
@@ -340,26 +359,33 @@ class Evaluator:
                     percent_column(correction_f1, column_width)
                 ))
             else:
-                print("%s | %.2f (%i/%i) %.2f (%i/%i) %.2f | %.2f (%i/%i) %.2f (%i/%i) %.2f" % (
-                    label,
-                    detection_precision * 100,
-                    counts[EvaluationCase.DID_DETECT],
-                    counts[EvaluationCase.PREDICTED],
-                    detection_recall * 100,
-                    counts[EvaluationCase.WAS_DETECTED],
-                    counts[EvaluationCase.WAS_DETECTED] + counts[EvaluationCase.UNDETECTED],
-                    detection_f1 * 100,
-                    correction_precision * 100,
-                    counts[EvaluationCase.TRUE_POSITIVE],
-                    counts[EvaluationCase.TRUE_POSITIVE] + counts[EvaluationCase.FALSE_POSITIVE],
-                    correction_recall * 100,
-                    counts[EvaluationCase.TRUE_POSITIVE],
-                    counts[EvaluationCase.TRUE_POSITIVE] + counts[EvaluationCase.FALSE_NEGATIVE],
-                    correction_f1 * 100
+                print("%s | %s %s %s | %s %s %s" % (
+                    table_column(label, width=11),
+                    table_column("%s (%i/%i)" % (percentage_string(detection_precision),
+                                                 counts[EvaluationCase.DID_DETECT],
+                                                 counts[EvaluationCase.PREDICTED])),
+                    table_column("%s (%i/%i)" % (percentage_string(detection_recall),
+                                                 counts[EvaluationCase.WAS_DETECTED],
+                                                 counts[EvaluationCase.WAS_DETECTED] +
+                                                 counts[EvaluationCase.UNDETECTED])),
+                    percentage_string(detection_f1),
+                    table_column("%s (%i/%i)" % (percentage_string(correction_precision),
+                                                 counts[EvaluationCase.TRUE_POSITIVE],
+                                                 counts[EvaluationCase.TRUE_POSITIVE] +
+                                                 counts[EvaluationCase.FALSE_POSITIVE])),
+                    table_column("%s (%i/%i)" % (percentage_string(correction_recall),
+                                                 counts[EvaluationCase.TRUE_POSITIVE],
+                                                 counts[EvaluationCase.TRUE_POSITIVE] +
+                                                 counts[EvaluationCase.FALSE_NEGATIVE])),
+                    percentage_string(correction_f1)
                 ))
 
     def print_evaluation(self):
+        header = "TYPE%s| DETECTION (precision, recall, F1)%s| CORRECTION (precision, recall, F1)" % (" " * 8, " " * 16)
+        print(header)
+        print("-" * 114)
         self.print_table(latex=False)
+        print("-" * 114)
 
 
 def index2group_matching(groupings: List[Tuple[Tuple[int, ...], Tuple[int, ...]]]) -> Dict[int, Tuple[int]]:
@@ -386,26 +412,17 @@ def evaluate_sample(correct: str, corrupt: str, predicted: str):
     corrupt_tokens = corrupt.split()
     predicted_tokens = predicted.split()
 
-    n_gt = len(correct_tokens)
-    n_in = len(corrupt_tokens)
-    n_pred = len(predicted_tokens)
-
     # matchings
     pred_gt_matching = match_tokens(predicted_tokens, correct_tokens)
-    in_gt_matching = match_tokens(corrupt_tokens, correct_tokens)
     pred_in_matching = match_tokens(predicted_tokens, corrupt_tokens)
 
     # gt labels
     gt_correctly_predicted = set(i for _, i in pred_gt_matching)
-    # gt_not_corrupt = set(i for _, i in in_gt_matching)
     gt_labels = ground_truth_token_labels(correct, corrupt)
     gt_not_corrupt = set(i for i, labels in enumerate(gt_labels) if len(labels) == 0)
-    # print([label.name for label in gt_labels])
 
     # in labels
-    # in_not_corrupt = set(i for i, _ in in_gt_matching)
     in_true_labels = input_true_token_labels(correct, corrupt)
-    in_not_corrupt = set(i for i, labels in enumerate(in_true_labels) if len(labels) == 0)
     in_predicted_labels = input_predicted_token_labels(corrupt, predicted)
 
     # pred labels
@@ -418,7 +435,6 @@ def evaluate_sample(correct: str, corrupt: str, predicted: str):
 
     # GROUND TRUTH SEQUENCE
 
-    contains_gt_none = False
     gt_sequence = ""
     for gt_i, gt_token, labels, error_type in izip(correct_tokens, gt_labels, gt_error_types):
         color = None
@@ -538,7 +554,8 @@ if __name__ == "__main__":
                         help="Path to the vocabulary (one word per line, default: data/words.txt).")
     parser.add_argument("-n", type=int, default=-1,
                         help="Number of sequences to evaluate (default: all).")
-    parser.add_argument("-mp", action="store_true")
+    parser.add_argument("-mp", action="store_true",
+                        help="Use multiprocessing.")
     args = parser.parse_args()
 
     words = set(read_lines(args.words))
@@ -579,6 +596,6 @@ if __name__ == "__main__":
                                                         args.n)
     evaluator.print_evaluation()
     end = time.monotonic()
-    print(f"Processing {total_sequences} sequences took {end - start:.2f} seconds")
+    print("%.1f%% sequence accuracy" % ((n_correct / total_sequences) * 100))
     print()
-    print("%.1f sequence accuracy" % ((n_correct / total_sequences) * 100))
+    print(f"Processing {total_sequences} sequences took {end - start:.2f} seconds")

@@ -552,7 +552,7 @@ if __name__ == "__main__":
                         help="Path to the file with the predicted sequences.")
     parser.add_argument("--words", type=str, default="data/words.txt",
                         help="Path to the vocabulary (one word per line, default: data/words.txt).")
-    parser.add_argument("-n", type=int, default=-1,
+    parser.add_argument("-n", type=int, default=None,
                         help="Number of sequences to evaluate (default: all).")
     parser.add_argument("-mp", action="store_true",
                         help="Use multiprocessing.")
@@ -596,6 +596,6 @@ if __name__ == "__main__":
                                                         args.n)
     evaluator.print_evaluation()
     end = time.monotonic()
-    print("%.1f%% sequence accuracy" % ((n_correct / total_sequences) * 100))
+    print("%.1f%% sequence accuracy (%i/%i)" % ((n_correct / total_sequences) * 100, n_correct, total_sequences))
     print()
     print(f"Processing {total_sequences} sequences took {end - start:.2f} seconds")

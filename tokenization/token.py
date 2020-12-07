@@ -21,8 +21,8 @@ class Token:
 
 
 def recombine_words(words: List[str],
-                     original_tokens: List[Token],
-                     original_sequence: str):
+                    original_tokens: List[Token],
+                    original_sequence: str):
     recombined_sequence = ""
     for i, (word, token) in enumerate(zip(words, original_tokens)):
         if i > 0:

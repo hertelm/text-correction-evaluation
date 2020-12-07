@@ -20,10 +20,10 @@ class TokenOperation:
     def __init__(self,
                  type: TokenOperationType,
                  token_indices: Union[int, Tuple[int, ...]],
-                 subtoken_index: Optional[int]=None,
-                 split_position: Optional[int]=None,
-                 word: Optional[str]=None,
-                 edit_distance: Optional[int]=None):
+                 subtoken_index: Optional[int] = None,
+                 split_position: Optional[int] = None,
+                 word: Optional[str] = None,
+                 edit_distance: Optional[int] = None):
         self.type = type
         self.token_indices = token_indices
         self.subtoken_index = subtoken_index
@@ -33,12 +33,12 @@ class TokenOperation:
 
     def __str__(self):
         return "TokenOperation(type=%s, tokens=%s, subtoken=%s, split=%s, word=%s, ed=%s)" % (
-            self.type.name, str(self.token_indices), str(self.subtoken_index), str(self.split_position), str(self.word), str(self.edit_distance)
+            self.type.name, str(self.token_indices), str(self.subtoken_index), str(self.split_position), str(self.word),
+            str(self.edit_distance)
         )
 
     def _tuple(self):
         return self.type, self.token_indices, self.subtoken_index, self.split_position, self.word
-        #return self.token_indices, self.subtoken_index, self.split_position
 
     def __eq__(self, other):
         return self._tuple() == other._tuple()
@@ -99,7 +99,8 @@ class TokenGroup:
         self.subgroup_edits = [[]]
 
     def __str__(self):
-        return "ToḱenGroup(%i, %s, %s, %s)" % (self.start_pos, str(self.token_indices), str(self.split_positions), str(self.subgroup_edits))
+        return "ToḱenGroup(%i, %s, %s, %s)" % \
+               (self.start_pos, str(self.token_indices), str(self.split_positions), str(self.subgroup_edits))
 
     def add_split(self, subtoken_index: int, sequence_position: int):
         relative_position = sequence_position - self.start_pos - len(self.split_positions) - subtoken_index

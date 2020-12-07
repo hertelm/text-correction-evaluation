@@ -104,7 +104,7 @@ def edit_operation_matrix(a: str,
                 operation_costs.append((d[i - 1, j - 1], OperationType.NONE))
             else:
                 if space_replace or (a[i - 1] != ' ' and b[j - 1] != ' '):
-                        operation_costs.append((d[i - 1, j - 1] + 1, OperationType.REPLACEMENT))
+                    operation_costs.append((d[i - 1, j - 1] + 1, OperationType.REPLACEMENT))
             if i > 1 and j > 1 and a[i - 1] == b[j - 2] and a[i - 2] == b[j - 1]:
                 if space_replace or (a[i - 1] != ' ' and a[i - 2] != ' '):
                     cost = 0 if a[i - 1] == b[j - 1] else 1

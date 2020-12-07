@@ -272,7 +272,8 @@ def error_types(correct: str,
     for correct_indices, corrupt_indices in matchings:
         matched_corrupt_tokens = [corrupt_tokens[i] for i in corrupt_indices]
         matched_corrupt_error_types = [get_error_type(token, tokenizer, words) for token in matched_corrupt_tokens]
-        correct_error_type = ErrorType.NONWORD if ErrorType.NONWORD in matched_corrupt_error_types else ErrorType.REAL_WORD
+        correct_error_type = ErrorType.NONWORD if ErrorType.NONWORD in matched_corrupt_error_types \
+            else ErrorType.REAL_WORD
         corrupt_error_types.extend(matched_corrupt_error_types)
         correct_error_types.extend([correct_error_type] * len(correct_indices))
     return correct_error_types, corrupt_error_types, matchings
@@ -366,17 +367,17 @@ class Evaluator:
                                                  counts[EvaluationCase.PREDICTED])),
                     table_column("%s (%i/%i)" % (percentage_string(detection_recall),
                                                  counts[EvaluationCase.WAS_DETECTED],
-                                                 counts[EvaluationCase.WAS_DETECTED] +
-                                                 counts[EvaluationCase.UNDETECTED])),
+                                                 counts[EvaluationCase.WAS_DETECTED]
+                                                 + counts[EvaluationCase.UNDETECTED])),
                     percentage_string(detection_f1),
                     table_column("%s (%i/%i)" % (percentage_string(correction_precision),
                                                  counts[EvaluationCase.TRUE_POSITIVE],
-                                                 counts[EvaluationCase.TRUE_POSITIVE] +
-                                                 counts[EvaluationCase.FALSE_POSITIVE])),
+                                                 counts[EvaluationCase.TRUE_POSITIVE]
+                                                 + counts[EvaluationCase.FALSE_POSITIVE])),
                     table_column("%s (%i/%i)" % (percentage_string(correction_recall),
                                                  counts[EvaluationCase.TRUE_POSITIVE],
-                                                 counts[EvaluationCase.TRUE_POSITIVE] +
-                                                 counts[EvaluationCase.FALSE_NEGATIVE])),
+                                                 counts[EvaluationCase.TRUE_POSITIVE]
+                                                 + counts[EvaluationCase.FALSE_NEGATIVE])),
                     percentage_string(correction_f1)
                 ))
 

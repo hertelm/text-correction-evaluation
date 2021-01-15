@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" type="text/css" href="style.css">
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+		<script src="evaluation.js"></script>
+		<title>Spelling Correction Evaluation</title>
+	</head>
+	
+	<body>
+		<header>
+			<h1>Spelling Correction Evaluation</h1>
+		</header>
+		<div class="content">
+		    <h1>Benchmark</h1>
+		    <div class="noborder">
+		        <table>
+		            <tr>
+		                <td>benchmark:</td>
+		                <td>
+		                    <select id="select_benchmark"></select>
+		                </td>
+		            </tr>
+		            <tr>
+		                <td>set:</td>
+		                <td>
+		                    <select id="select_subset">
+		                        <option>development</option>
+            			    	<option>test</option>
+		                    </select>
+		                </td>
+		            </tr>
+		        </table>
+	        </div>
+		    <p>
+		        <div id="benchmark_table" class="resultsTable"></div>
+		    </p>
+		    <p>
+			    <button type="button" id="tab_button">sequences</button>
+			</p>
+			<div id="details_tab">
+			    <h1>Details</h1>
+			    <p>
+			        approach: <select id="select_approach"></select>
+			    </p>
+			    <p>
+			        <div id="details_table" class="resultsTable"></div>
+			    </p>
+			    <p>
+				    <div id="sequences_table"></div>
+			    </p>
+		    </div>
+		    <div id="sequences_tab" style="display: none">
+		        <h1>Sequences</h1>
+		        <p>
+		            <button type="button" id="previous_sequence">prev</button>
+		            <input type="text" id="sequence_number" style="width: 30px" value="0">
+		            <button type="button" id="next_sequence">next</button>
+		        </p>
+		        <div id="sequences_comparison"></div>
+		    </div>
+		</div>
+	</body>
+</html>

@@ -135,6 +135,9 @@ function results_table_header(details) {
     }
     header = "<tr>";
     header += "<th rowspan=\"2\">" + col1_title + "</th>";
+    if (details) {
+        header += "<th rowspan=\"2\">n</th>";
+    }
     header += "<th colspan=\"3\">detection</th>";
     header += "<th colspan=\"3\">correction</th>";
     if (!details) {
@@ -230,7 +233,13 @@ function create_detail_table(path) {
     details_table = "<table>\n";
     details_table += results_table_header(true);
     for (label of ["all", "NONWORD", "REAL_WORD", "SINGLE_EDIT", "MULTI_EDIT", "SPLIT", "MERGE", "MIXED"]) {
+        if (results[label].hasOwnProperty("n")) {
+            n_cases = results[label].n;
+        } else {
+            n_cases = "?";
+        }
         details_table += table_row([label,
+                                    n_cases,
                                     percent(results[label].detection.precision),
                                     percent(results[label].detection.recall),
                                     percent(results[label].detection.f1),

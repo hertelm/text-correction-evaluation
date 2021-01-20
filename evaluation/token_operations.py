@@ -1,19 +1,18 @@
 from typing import Union, Tuple, Optional, List
 
-from enum import Enum
+import numpy as np
 
+from helper.sortable_enum import SortableEnum
 from edit_distance.transposition_edit_distance import edit_operations, EditOperation, OperationType
 from helper.data_structures import izip
+from evaluation.evaluated_sequence import TokenLabel
 
 
-class TokenOperationType(Enum):
+class TokenOperationType(SortableEnum):
     MERGE = 0
     SPLIT = 1
     REPLACE_SINGLE = 2
     REPLACE_MULTI = 3
-
-    def __lt__(self, other):
-        return self.value < other.value
 
 
 class TokenOperation:
@@ -190,3 +189,140 @@ def get_token_operations(a: str, b: str) -> List[TokenOperation]:
     add_subgroups(merged_groups, token_edits)
     token_operations = token_groups2token_operations(merged_groups, b_tokens)
     return token_operations
+
+
+class Label(SortableEnum):
+    EDIT = 0
+    MERGE = 1
+    SPLIT = 2
+
+
+def is_split_operation(operation: EditOperation) -> bool:
+    return operation.type == OperationType.INSERTION and operation.character == ' '
+
+
+def is_merge_operation(operation: EditOperation) -> bool:
+    return operation.type == OperationType.DELETION and operation.character == ' '
+
+
+def operation2label(operation: EditOperation) -> Label:
+    if is_split_operation(operation):
+        return Label.SPLIT
+    if is_merge_operation(operation):
+        return Label.MERGE
+    return Label.EDIT
+
+
+def inverse_label(label: Label) -> Label:
+    if label == Label.EDIT:
+        return label
+    return Label.SPLIT if label == Label.MERGE else Label.MERGE
+
+
+def token_labels(a: str, b: str, inverse: bool) -> List[List[Label]]:
+    edit_ops = edit_operations(a, b, space_replace=False)
+    token_ops = assign_edits_to_tokens(edit_ops, a.split())
+    labels = []
+    for _ in token_ops:
+        labels.append([])
+    for t_i, ops in enumerate(token_ops):
+        for op in ops:
+            label = operation2label(op)
+            labels[t_i].append(label if not inverse else inverse_label(label))
+            if label == Label.MERGE:
+                labels[t_i + 1].append(label if not inverse else inverse_label(label))
+    return labels
+
+
+def ground_truth_token_labels(correct: str, corrupt: str) -> List[List[Label]]:
+    return token_labels(correct, corrupt, inverse=False)
+
+
+def input_true_token_labels(correct: str, corrupt: str) -> List[List[Label]]:
+    return token_labels(corrupt, correct, inverse=True)
+
+
+def input_predicted_token_labels(corrupt: str, predicted: str) -> List[List[Label]]:
+    return token_labels(corrupt, predicted, inverse=True)
+
+
+def is_token_merged(token_ops: List[EditOperation]) -> bool:
+    return len(token_ops) > 0 and is_merge_operation(token_ops[-1])
+
+
+def n_split_operations(token_ops: List[EditOperation]):
+    return sum(1 if is_split_operation(op) else 0 for op in token_ops)
+
+
+def group_tokens(a: str, b: str) -> List[Tuple[Tuple[int, ...], Tuple[int, ...]]]:
+    a_tokens = a.split()
+    edit_ops = edit_operations(a, b, space_replace=False)
+    token_ops = assign_edits_to_tokens(edit_ops, a_tokens)
+    matchings = []
+    b_i = 0
+    a_group = []
+    b_group = []
+    for a_i, ops in enumerate(token_ops):
+        a_group.append(a_i)
+        n_splits = n_split_operations(ops)
+        if is_token_merged(ops):
+            b_group.extend(range(b_i, b_i + n_splits))
+            b_i += n_splits
+        else:
+            b_group.extend(range(b_i, b_i + n_splits + 1))
+            b_i += n_splits + 1
+            matchings.append((tuple(a_group), tuple(b_group)))
+            a_group = []
+            b_group = []
+    return matchings
+
+
+def edit_labels2token_label(labels: List[Label]) -> TokenLabel:
+    if len(labels) == 0:
+        return TokenLabel.NONE
+    elif len(labels) == 1:
+        if labels[0] == Label.EDIT:
+            return TokenLabel.SINGLE_EDIT
+        if labels[0] == Label.SPLIT:
+            return TokenLabel.SPLIT
+        if labels[0] == Label.MERGE:
+            return TokenLabel.MERGE
+    else:
+        for label in labels:
+            if label != Label.EDIT:
+                return TokenLabel.MIXED
+    return TokenLabel.MULTI_EDIT
+
+
+def match_tokens(a: List[str], b: List[str]) -> List[Tuple[int, int]]:
+    n_a = len(a)
+    n_b = len(b)
+    d = np.zeros(shape=(n_a + 1, n_b + 1), dtype=int)
+    # d[:, 0] = range(d.shape[0])
+    # d[0, :] = range(d.shape[1])
+    is_match = np.zeros_like(d, dtype=bool)
+    for i in range(n_a):
+        for j in range(n_b):
+            d[i + 1, j + 1] = max(
+                d[i, j + 1],
+                d[i + 1, j],
+                d[i, j]
+            )
+            if a[i] == b[j] and d[i + 1, j + 1] <= d[i, j] + 1:
+                d[i + 1, j + 1] = d[i, j] + 1
+                is_match[i + 1, j + 1] = True
+    matchings = []
+    i, j = n_a, n_b
+    while i > 0 and j > 0:
+        if is_match[i, j]:
+            i, j = i - 1, j - 1
+            matchings.append((i, j))
+        elif i > 0 and j > 0 and d[i, j] == d[i - 1, j - 1]:
+            i, j = i - 1, j - 1
+        elif i > 0 and d[i, j] == d[i - 1, j]:
+            i = i - 1
+        elif j > 0 and d[i, j] == d[i, j - 1]:
+            j = j - 1
+        else:
+            raise Exception("something unexpected happened")
+    return matchings[::-1]

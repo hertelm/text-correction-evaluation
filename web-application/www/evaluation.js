@@ -95,11 +95,20 @@ function get_approaches() {
         $("#details_table").html("select an approach above");
         $("#sequences_table").html("");
         show_benchmark_results();
+        create_approach_selectors();
     });
 }
 
 function show_benchmark_results() {
     get_benchmark_results();
+}
+
+function create_approach_selectors() {
+    selectors_html = "";
+    for (approach of approaches) {
+        selectors_html += "<input type=\"checkbox\" id=\"checkbox_" + approach + "\" onClick=\"show_sequence_comparison()\">" + approach + "</br>";
+    }
+    $("#approach_selectors").html(selectors_html);
 }
 
 function percent(fraction) {
@@ -257,6 +266,9 @@ function show_sequences() {
     table = "<table>\n" + sequence_table_header("#");
     j = 0;
     n = benchmark_results[approach].sequences;
+    if (n > 1000) {
+        n = 1000;
+    }
     for (i = 0; i < n; i++) {
         promise = new Promise(function(add_line) {
             sequence_file = sequences_path + i + ".json";
@@ -296,7 +308,10 @@ function show_sequence_comparison() {
         table = "<table>\n";
         table += sequence_table_header("approach");
         for (approach of approaches) {
-            table += sequence_table_row(approach, evaluated_sequences[approach]);
+            if (document.getElementById("checkbox_" + approach).checked) {
+                console.log(approach);
+                table += sequence_table_row(approach, evaluated_sequences[approach]);
+            }
         }
         table += "</table>";
         $("#sequences_comparison").html(table);

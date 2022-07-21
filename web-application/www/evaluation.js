@@ -305,15 +305,13 @@ function show_sequence_comparison() {
         promises.push(promise);
     });
     Promise.all(promises).then(function() {
-        table = "<table>\n";
-        table += sequence_table_header("approach");
+        table = "";
         for (approach of approaches) {
             if (document.getElementById("checkbox_" + approach).checked) {
                 console.log(approach);
                 table += sequence_table_row(approach, evaluated_sequences[approach]);
             }
         }
-        table += "</table>";
-        $("#sequences_comparison").html(table);
+        $("#tbody_sequence_comparison").html(table);
     });
 }

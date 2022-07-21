@@ -60,7 +60,19 @@
 		            <input type="text" id="sequence_number" style="width: 30px" value="0">
 		            <button type="button" id="next_sequence">next</button>
 		        </p>
-		        <div id="sequences_comparison" style="margin-bottom:6cm"></div>
+		        <div id="sequences_comparison" style="margin-bottom:6cm">
+		            <table style="width:100%">
+		                <thead>
+		                    <tr>
+		                        <th style="width:10%">approach</th>
+		                        <th style="width:30%">MISSPELLED</th>
+		                        <th style="width:30%">PREDICTED</th>
+		                        <th style="width:30%">GROUND TRUTH</th>
+		                    </tr>
+		                </thead>
+		                <tbody id="tbody_sequence_comparison"></tbody>
+		            </table>
+		        </div>
 		    </div>
 		</div>
 	</body>

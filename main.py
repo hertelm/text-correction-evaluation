@@ -3,6 +3,7 @@ import time
 import argparse
 import multiprocessing as mp
 import json
+from tqdm import tqdm
 
 from helper.files import read_lines, read_file
 from evaluation.evaluator import Evaluator
@@ -25,12 +26,12 @@ if __name__ == "__main__":
                         help="Use multiprocessing.")
     parser.add_argument("--out", required=False, type=str,
                         help="Evaluation output file (file endings will be attached).")
+    parser.add_argument("--silent", required=False, action="store_true")
     args = parser.parse_args()
 
     words = set(read_lines(args.words))
-    print(len(words))
 
-    evaluator = Evaluator(words)
+    evaluator = Evaluator(words, verbose=not args.silent)
 
     start = time.monotonic()
 
@@ -42,7 +43,8 @@ if __name__ == "__main__":
 
     with mp.Pool(n_cpus) as pool:
         results = pool.starmap(evaluator.evaluate_sample,
-                               list(zip(correct_sequences, corrupt_sequences, predicted_sequences)))
+                               tqdm(list(zip(correct_sequences, corrupt_sequences, predicted_sequences)),
+                                    disable=not args.silent))
 
     for evaluations, is_correct, _ in results:
         for labels, case, error_type in evaluations:
@@ -62,10 +64,12 @@ if __name__ == "__main__":
         with open(results_file, "w") as f:
             f.write(json.dumps(results_dict))
 
-    evaluator.print_evaluation()
     end = time.monotonic()
-    print("%.1f%% sequence accuracy (%i/%i)" % (evaluator.sequence_accuracy() * 100,
-                                                evaluator.n_correct_sequences,
-                                                evaluator.n_sequences))
-    print()
+
+    if not args.silent:
+        evaluator.print_evaluation()
+        print("%.1f%% sequence accuracy (%i/%i)" % (evaluator.sequence_accuracy() * 100,
+                                                    evaluator.n_correct_sequences,
+                                                    evaluator.n_sequences))
+        print()
     print(f"Processing {evaluator.n_sequences} sequences took {end - start:.2f} seconds")

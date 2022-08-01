@@ -1,7 +1,6 @@
 from typing import List, Tuple, Iterable, Set, Optional, Dict
 
 from termcolor import colored
-from functools import lru_cache
 
 from helper.data_structures import izip
 from edit_distance.transposition_edit_distance import edit_operations as get_edit_operations, EditOperation
@@ -11,7 +10,6 @@ from tokenization.regex_tokenizer import RegexTokenizer
 from evaluation.evaluated_sequence import TokenLabel, ErrorType, EvaluationCase, EvaluatedToken, EvaluatedSequence
 
 
-@lru_cache(6)
 def edit_operations(a: str, b: str, space_replace: bool) -> List[EditOperation]:
     return get_edit_operations(a, b, space_replace)
 
@@ -120,7 +118,7 @@ def table_column(entry: str, width: int = COLUMN_WIDTH):
 class Evaluator:
     ERROR_LABELS = [None] + sorted(ErrorType) + sorted([label for label in TokenLabel if label != TokenLabel.NONE])
 
-    def __init__(self, words: Set[str]):
+    def __init__(self, words: Set[str], verbose: bool = False):
         self.count = {
             label: {
                 case: 0 for case in EvaluationCase
@@ -130,6 +128,7 @@ class Evaluator:
         self.tokenizer = RegexTokenizer()
         self.n_sequences = 0
         self.n_correct_sequences = 0
+        self.verbose = verbose
 
     def add(self, labels: List[Label], case: EvaluationCase, error_type: ErrorType):
         label = edit_labels2token_label(labels)
@@ -350,10 +349,11 @@ class Evaluator:
             eval_token = EvaluatedToken(pred_token, None, None, None, case)
             pred_evaluated_tokens.append(eval_token)
 
-        print("GROUND TRUTH:\n" + gt_sequence)
-        print("INPUT:\n" + in_sequence)
-        print("PREDICTED:\n" + pred_sequence)
-        print()
+        if self.verbose:
+            print("GROUND TRUTH:\n" + gt_sequence)
+            print("INPUT:\n" + in_sequence)
+            print("PREDICTED:\n" + pred_sequence)
+            print()
 
         evaluated_sequence = EvaluatedSequence(correct, corrupt, predicted, gt_evaluated_tokens, in_evaluated_tokens,
                                                pred_evaluated_tokens)
